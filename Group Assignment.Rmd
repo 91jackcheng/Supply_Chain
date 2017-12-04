@@ -1,6 +1,6 @@
 ---
 title: "Group Assingment"
-author: "Reece Wooten, Kyle Katzen and Lufang Liu"
+author: "Reece Wooten, Kyle Katzen and Daxi Cheng"
 date: "12/2/2017"
 output:
   pdf_document:
@@ -20,7 +20,10 @@ library(glmnet)
 
 ```
 
-## Question 1
+## Question 1 (20 pts) Select variables in a parsimonious regression model to estimate the value of lagged
+effects of “Consumer Packs” and “Dealer Allowances” on “Case Shipments” for Treat. Limit your
+analysis to lags of zero, one and two months. 
+
 ```{r}
 case_data<-read.csv('Case Shipments.csv')
 seas_data<-read.csv('Seasonality Index.csv')
@@ -43,14 +46,14 @@ X<- as.matrix(case_data[13:60,3:8])
 ```
 
 ```{r}
+
 mod1_cv<-cv.glmnet(x = X,y = y_reg,nfolds = 10)
 best_lam<-mod1_cv$lambda.min
-```
-
-```{r}
 mod1_cv.coef=predict(mod1_cv,type='coefficients',s=best_lam)
 predict(mod1_cv,type='coefficients',s=best_lam)
 ```
+
+
 
 ```{r}
 x_red<-X[,c('Consumer.Packs','Dealer.Allowance','lag.cp1','lag.da1','lag.da2')]
@@ -62,7 +65,9 @@ x_red_tr<-X_tr[,c('Consumer.Packs','Dealer.Allowance','lag.cp1')]
 x_red_te<-X_te[,c('Consumer.Packs','Dealer.Allowance','lag.cp1')]
 ```
 
-## Question 2 
+## Question 2 (20 pts) Using only the variables that you identified in the question above, develop and justify a
+regression model with ARIMA errors to forecast monthly demand for treat twelve months into
+the future. To accomplish this make the following assumptions:
 
 ### Figure 2.0
 ```{r}
@@ -94,10 +99,17 @@ lines(y_te,col='red')
 
 
 
-## Question 3
+## Question 3 (20 pts) Now use the seasonality factors provided in the case and use them to “adjust for
+seasonality” the demand, then use this adjusted demand to develop a forecasting model and
+compare it to the one you developed in Question 2.
 ```{r}
-y_adj1<-case_data['Case.Shipments']/seas_data['Seasonality.Index']
-y_adj<-ts(case_data['Case.Shipments']/seas_data['Seasonality.Index'])
+X0=seas_data['Seasonality.Index']
+X1 <- rbind(X0,X0)
+X1 <- rbind(X1,X0)
+X1 <- rbind(X1,X0)
+X1 <- rbind(X1,X0)
+y_adj1<-case_data['Case.Shipments']/X1
+y_adj<-ts(case_data['Case.Shipments']/X1)
 y_tr_adj <- window(y_adj, start=c(13),end=c(48))
 y_te_adj <- window(y_adj, start=c(49), end=c(60))
 y_reg_adj <-y_adj1[13:60,"Case.Shipments"]
