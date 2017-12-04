@@ -63,6 +63,8 @@ x_red_tr<-X_tr[,c('Consumer.Packs','Dealer.Allowance','lag.cp1')]
 x_red_te<-X_te[,c('Consumer.Packs','Dealer.Allowance','lag.cp1')]
 ```
 
+### Analysis
+
 ## Question 2 
 
 ### Figure 2.0
@@ -91,7 +93,7 @@ plot(for_non_seas)
 lines(y_te,col='red')
 ```
 
-
+### Analysis
 
 ## Question 3
 
@@ -160,6 +162,22 @@ for2<-forecast(mod3,xreg =x_red_te,h=12)
 plot(for2)
 lines(y_te_adj,col='red')
 ```
+
+### Analysis
+
+## Question 4
+
+### Analysis
+
+## Question 5
+
+### Analysis
+
+
+
+
+
+
 
 ```{r include=FALSE}
 unseason_for<-for2$mean*(seas_index_12/10)
