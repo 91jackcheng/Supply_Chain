@@ -3,12 +3,12 @@ title: "Group Assingment"
 author: "Reece Wooten, Kyle Katzen and Daxi Cheng"
 date: "12/2/2017"
 output:
-  pdf_document:
-    toc: yes
   html_document:
     theme: cerulean
     toc: yes
     toc_float: yes
+  pdf_document:
+    toc: yes
 ---
 
 ```{r setup, include=FALSE}
@@ -20,19 +20,16 @@ library(glmnet)
 
 ```
 
-## Question 1 (20 pts) Select variables in a parsimonious regression model to estimate the value of lagged
-effects of “Consumer Packs” and “Dealer Allowances” on “Case Shipments” for Treat. Limit your
-analysis to lags of zero, one and two months. 
-
+## Question 1
 ```{r}
 case_data<-read.csv('Case Shipments.csv')
 seas_data<-read.csv('Seasonality Index.csv')
 ```
 
-```{r}
-y<-ts(case_data["Case.Shipments"])
-y_tr <- window(y, start=c(13),end=c(48))
-y_te <- window(y, start=c(49), end=c(60))
+```{r results='hide', message=FALSE, warning=FALSE}
+y<-ts(case_data["Case.Shipments"],frequency = 12)
+y_tr <- window(y, start=c(2,1),end=c(4,12))
+y_te <- window(y, start=c(5,1), end=c(5,12))
 y_reg <-case_data[13:60,"Case.Shipments"]
 
 case_data['lag.cp1']<-slide(case_data, Var = "Consumer.Packs", slideBy = -1,NewVar = 'lag.cp1')['lag.cp1']
@@ -45,15 +42,16 @@ X_te <- as.matrix(case_data[49:60,3:8])
 X<- as.matrix(case_data[13:60,3:8])
 ```
 
-```{r}
 
+```{r}
 mod1_cv<-cv.glmnet(x = X,y = y_reg,nfolds = 10)
 best_lam<-mod1_cv$lambda.min
+```
+
+```{r}
 mod1_cv.coef=predict(mod1_cv,type='coefficients',s=best_lam)
 predict(mod1_cv,type='coefficients',s=best_lam)
 ```
-
-
 
 ```{r}
 x_red<-X[,c('Consumer.Packs','Dealer.Allowance','lag.cp1','lag.da1','lag.da2')]
@@ -65,18 +63,14 @@ x_red_tr<-X_tr[,c('Consumer.Packs','Dealer.Allowance','lag.cp1')]
 x_red_te<-X_te[,c('Consumer.Packs','Dealer.Allowance','lag.cp1')]
 ```
 
-## Question 2 (20 pts) Using only the variables that you identified in the question above, develop and justify a
-regression model with ARIMA errors to forecast monthly demand for treat twelve months into
-the future. To accomplish this make the following assumptions:
+## Question 2 
 
 ### Figure 2.0
 ```{r}
 tsdisplay(y_tr)
 ```
-
-
 ```{r}
-mod3<-Arima(y_tr,order = c(1,2,2),xreg = x_red_tr)
+mod3<-Arima(y_tr,order = c(1,2,2),seasonal = c(0,0,2),xreg = x_red_tr)
 summary(mod3)
 ```
 
@@ -92,26 +86,23 @@ tsdisplay(mod3$residuals)
 
 ### Figure 2.3
 ```{r}
-for2<-forecast(mod3,xreg =x_red_te,h=12 )
-plot(for2)
+for_non_seas<-forecast(mod3,xreg =x_red_te,h=12 )
+plot(for_non_seas)
 lines(y_te,col='red')
 ```
 
 
 
-## Question 3 (20 pts) Now use the seasonality factors provided in the case and use them to “adjust for
-seasonality” the demand, then use this adjusted demand to develop a forecasting model and
-compare it to the one you developed in Question 2.
+## Question 3
+
+
 ```{r}
-X0=seas_data['Seasonality.Index']
-X1 <- rbind(X0,X0)
-X1 <- rbind(X1,X0)
-X1 <- rbind(X1,X0)
-X1 <- rbind(X1,X0)
-y_adj1<-case_data['Case.Shipments']/X1
-y_adj<-ts(case_data['Case.Shipments']/X1)
-y_tr_adj <- window(y_adj, start=c(13),end=c(48))
-y_te_adj <- window(y_adj, start=c(49), end=c(60))
+seas_index<-seas_data['Seasonality.Index']/10
+y_adj<-ts(case_data['Case.Shipments']/seas_index,frequency = 12)
+y_adj1<-case_data['Case.Shipments']/seas_index
+
+y_tr_adj <- window(y_adj, start=c(2,1),end=c(4,12))
+y_te_adj <- window(y_adj, start=c(5,1), end=c(5,12))
 y_reg_adj <-y_adj1[13:60,"Case.Shipments"]
 
 ```
@@ -144,7 +135,7 @@ tsdisplay(y_tr_adj)
 
 
 ```{r}
-mod3<-Arima(y_tr_adj,order = c(2,2,1),xreg = x_red_tr)
+mod3<-Arima(y_tr_adj,order = c(2,2,2),seasonal = c(2,0,1),xreg = x_red_tr)
 summary(mod3)
 ```
 
@@ -160,15 +151,49 @@ tsdisplay(mod3$residuals)
 
 
 ```{r}
-seas_data['Seasonality.Index'][49:60,]
+seas_index_12<-seas_data['Seasonality.Index'][49:60,]
 ```
 
 ### Figure 3.2
 ```{r}
-
 for2<-forecast(mod3,xreg =x_red_te,h=12)
 plot(for2)
 lines(y_te_adj,col='red')
 ```
 
+```{r include=FALSE}
+unseason_for<-for2$mean*(seas_index_12/10)
+non_seas_mean<-for_non_seas$mean
+
+```
+
+```{r include=FALSE}
+unseason_for
+```
+
+```{r include=FALSE}
+ts.plot(non_seas_mean, unseason_for,y_te, gpars = list(col = c("black",'blue', "red")))
+```
+
+```{r include=FALSE}
+y_te=as.numeric(y_te)
+X <- cbind(non_seas_mean, unseason_for)
+library(opera)
+MLpol0 <- mixture(model = "MLpol", loss.type = "square")
+weights <- predict(MLpol0, X, y_te, type='weights')
+
+```
+
+
+```{r include=FALSE}
+z <- ts(predict(MLpol0, X, y_te, type='response'), start=c(49))
+```
+
+```{r include=FALSE}
+ts.plot(z,y_te, gpars = list(col = c("blue", "red")))
+```
+
+```{r include=FALSE}
+accuracy(z,y_te)
+```
 
