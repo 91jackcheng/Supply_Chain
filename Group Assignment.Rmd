@@ -179,6 +179,9 @@ lines(y_te_adj,col='red')
 ```
 
 ### Analysis
+The third question model has slighlty better p values for the Ljung-Box statistic than the second question model, implying that the third model has a bit mor statistical validity. We see that the bias for the third model is more than half that of the second model in terms of MPE, and the MASE was .17 to the .41 MASE of the second model. Just looking at the RMSE difference where the third model has an RMSE about one third of the RMSE of the second model should indicate the third model is doing much better. All of the Information Criterion are also lower on the third model than the second model. The second model appears worse in every way. 
+
+
 
 ## Question 4
 
