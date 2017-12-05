@@ -3,12 +3,12 @@ title: "Group Assingment"
 author: "Reece Wooten, Kyle Katzen and Daxi Cheng"
 date: "12/2/2017"
 output:
+  pdf_document:
+    toc: yes
   html_document:
     theme: cerulean
     toc: yes
     toc_float: yes
-  pdf_document:
-    toc: yes
 ---
 
 ```{r setup, include=FALSE}
@@ -24,12 +24,14 @@ library(glmnet)
 ```{r}
 case_data<-read.csv('Case Shipments.csv')
 seas_data<-read.csv('Seasonality Index.csv')
+seas_data<- rbind(seas_data,seas_data,seas_data,seas_data,seas_data)
 ```
 
 ```{r results='hide', message=FALSE, warning=FALSE}
 y<-ts(case_data["Case.Shipments"],frequency = 12)
 y_tr <- window(y, start=c(2,1),end=c(4,12))
 y_te <- window(y, start=c(5,1), end=c(5,12))
+
 y_reg <-case_data[13:60,"Case.Shipments"]
 
 case_data['lag.cp1']<-slide(case_data, Var = "Consumer.Packs", slideBy = -1,NewVar = 'lag.cp1')['lag.cp1']
@@ -40,6 +42,18 @@ case_data['lag.da2']<-slide(case_data, Var = "Dealer.Allowance", slideBy = -2,Ne
 X_tr <- as.matrix(case_data[13:48,3:8])
 X_te <- as.matrix(case_data[49:60,3:8])
 X<- as.matrix(case_data[13:60,3:8])
+```
+
+```{r include=FALSE}
+cp<-as.vector(t(case_data["Consumer.Packs"]))
+cp<-ts(cp,frequency = 12)
+dim(case_data["Consumer.Packs"])
+```
+```{r include=FALSE}
+cp_seas<-stl(cp,'periodic')
+```
+```{r include=FALSE}
+plot(cp_seas)
 ```
 
 
@@ -75,7 +89,7 @@ tsdisplay(y_tr)
 mod3<-Arima(y_tr,order = c(1,2,2),seasonal = c(0,0,2),xreg = x_red_tr)
 summary(mod3)
 ```
-AIC=859.43   AICc=863.74   BIC=870.12
+
 ### Figure 2.1
 ```{r}
 tsdiag(mod3)
@@ -99,17 +113,13 @@ lines(y_te,col='red')
 
 
 ```{r}
-seas_index<-seas_data['Seasonality.Index']/10
-seas<-seas_data['Seasonality.Index']/10
-seas_index=rbind(seas,seas)
-seas_index=rbind(seas_index,seas)
-seas_index=rbind(seas_index,seas)
-seas_index=rbind(seas_index,seas)
+seas_index<-seas_data['Seasonality.Index']/100
 y_adj<-ts(case_data['Case.Shipments']/seas_index,frequency = 12)
 y_adj1<-case_data['Case.Shipments']/seas_index
 
 y_tr_adj <- window(y_adj, start=c(2,1),end=c(4,12))
 y_te_adj <- window(y_adj, start=c(5,1), end=c(5,12))
+
 y_reg_adj <-y_adj1[13:60,"Case.Shipments"]
 
 ```
@@ -177,6 +187,18 @@ lines(y_te_adj,col='red')
 ## Question 5
 
 ### Analysis
+
+* Starting with a lasso regression, none of the variables coefficients converged to zero. So to address their statistical significance they were then put into a linear regression. This showed that only the consumer packs, dealer allowances, and lagged consumer packs were statistically significant. These variables were then put into an arima model which tried to account for its auto correlated errors. The model produced very good forecasts compared to the previous model which wasnt scaled by the seasonal index. The coefficients on consumer packs was .439 and the lagged consumer packs was -.156, indicating a stock up in the subsequent month. The dealer allowance had a smaller yet positive coef. .1008, which didnt have a lagged effect. 
+
+* While consumer packs have a larger effect than dealer allowances, consumer packs also have significant stock ups. Given this information, dealer allowances would allow Harmon foods to more stably increase sales, without the harm of stock ups. If Harmon foods wanted to use consumer packs as an advertising strategy they would need to be conscious of the stock ups and prepare their supply chain for lower demand in the subsequent month. I would recommend Dealer Allowances as a main strategy for Harmon Foods because of its predictable sales increase without the stock up risk.
+
+
+
+
+
+
+
+
 
 
 
