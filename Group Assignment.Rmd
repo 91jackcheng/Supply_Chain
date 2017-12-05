@@ -194,6 +194,8 @@ accuracy(for2,y_te_adj)
 
 ### Analysis
 
+* We can see from the result of the dynamic regression in question 3 that the coeeficient for consumer packs is 0.4391 which means a unit of consumer packs in time t will result in about 0.44 unit of increase of case shipment increase during time t the same period. However, the effect of lag1 consumer packs of  -0.1561 means that this will also result a decrease of about 0.16 unit of case shipment next period t+1. This is the forward buying effect that we got from the regression above.
+
 ## Question 5
 
 ### Analysis
