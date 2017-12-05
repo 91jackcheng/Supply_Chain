@@ -75,7 +75,7 @@ tsdisplay(y_tr)
 mod3<-Arima(y_tr,order = c(1,2,2),seasonal = c(0,0,2),xreg = x_red_tr)
 summary(mod3)
 ```
-
+AIC=859.43   AICc=863.74   BIC=870.12
 ### Figure 2.1
 ```{r}
 tsdiag(mod3)
@@ -100,6 +100,11 @@ lines(y_te,col='red')
 
 ```{r}
 seas_index<-seas_data['Seasonality.Index']/10
+seas<-seas_data['Seasonality.Index']/10
+seas_index=rbind(seas,seas)
+seas_index=rbind(seas_index,seas)
+seas_index=rbind(seas_index,seas)
+seas_index=rbind(seas_index,seas)
 y_adj<-ts(case_data['Case.Shipments']/seas_index,frequency = 12)
 y_adj1<-case_data['Case.Shipments']/seas_index
 
