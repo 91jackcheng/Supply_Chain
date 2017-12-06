@@ -3,12 +3,12 @@ title: "Group Assingment"
 author: "Reece Wooten, Kyle Katzen and Daxi Cheng"
 date: "12/2/2017"
 output:
+  pdf_document:
+    toc: yes
   html_document:
     theme: cerulean
     toc: yes
     toc_float: yes
-  pdf_document:
-    toc: yes
 ---
 
 ```{r setup, include=FALSE}
@@ -79,6 +79,8 @@ x_red_te<-X_te[,c('Consumer.Packs','Dealer.Allowance','lag.cp1')]
 
 ### Analysis
 
+* From the lasso model, only one variable converged to 0. To check statistical significance the non-zero variables were then put into a linear regression. This resulted in only the consumer packs, dealer allowances, and the lagged consumer packs variables being statistically significant. 
+
 ## Question 2 
 
 ### Figure 2.0
@@ -112,6 +114,8 @@ accuracy(for_non_seas,y_te)
 ```
 
 ### Analysis
+
+* First an initial guess of an Arima model was made by looking at the acf and pacf of the original data. After the initial guess which can be shown in the Arima output, a diagnostics of the residuals were done to see if the residuals were still auto-correlated. All the p-values in the ljung box test were statistically significant so the residuals are not auto correlated. 
 
 ## Question 3
 
@@ -188,13 +192,15 @@ accuracy(for2,y_te_adj)
 
 ### Analysis
 
-* The third question model has slighlty better p values for the Ljung-Box statistic than the second question model, implying that the third model has a bit mor statistical validity. We see that the bias for the third model is more than half that of the second model in terms of MPE, and the MASE was .17 to the .41 MASE of the second model. Just looking at the RMSE difference where the third model has an RMSE about one third of the RMSE of the second model should indicate the third model is doing much better. All of the Information Criterion are also lower on the third model than the second model. The second model appears worse in every way.
+* A similar analysis was conducted on the now adjusted sales data, first a lasso regression was ran to reduce the demonstrability of the data then a linear regression to see statistical significance. 
+
+* The third question model has slightly better p values for the Ljung-Box statistic than the second question model, implying that the third model has a bit more statistical validity. We see that the bias for the third model is more than half that of the second model in terms of MPE, and the MASE was .17 to the .41 MASE of the second model. Just looking at the RMSE difference where the third model has an RMSE about one third of the RMSE of the second model should indicate the third model is doing much better. All of the Information Criterion are also lower on the third model than the second model. The second model appears worse in every way.
 
 ## Question 4
 
 ### Analysis
 
-* We can see from the result of the dynamic regression in question 3 that the coeeficient for consumer packs is 0.4391 which means a unit of consumer packs in time t will result in about 0.44 unit of increase of case shipment increase during time t the same period. However, the effect of lag1 consumer packs of  -0.1561 means that this will also result a decrease of about 0.16 unit of case shipment next period t+1. This is the forward buying effect that we got from the regression above.
+* We can see from the result of the dynamic regression in question 3 that the coefficient for consumer packs is 0.4391 which means a unit of consumer packs in time t will result in about 0.44 unit of increase of case shipment increase during time t the same period. However, the effect of lag1 consumer packs of -0.1561 means that this will also result a decrease of about 0.16 unit of case shipment next period t+1. This is the forward buying effect that we got from the regression above.
 
 ## Question 5
 
