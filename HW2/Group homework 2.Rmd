@@ -1,0 +1,375 @@
+---
+title: "Homework 2"
+author: "Reece Wooten"
+date: "11/18/2017"
+output:
+  html_document:
+    theme: cerulean
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(fpp)
+library(reshape)
+library(dplyr)
+library(glmnet)
+```
+
+## Assumptions: 
+* Due to the demand of penut butter changing over time, we assumed the most appropriate window of training our models was from 2005 onward.
+
+* We also assumed a training and test set of the data, leaving 2011 as our 12 month ahead forecast for all the questions so that we could atest to the accuracy of our models.
+
+## Question 1
+
+```{r}
+# Monthly view
+library(xts)
+
+# The following function reads a weekly demand file and 
+# outputs a time-series with monthly figures
+# it assumes the first column is the IRI week and 
+# it converts the figures in the last column of the file
+# You can call it as:
+#
+#  w2m("input-file-name", "label")
+# where the input file is in a .csv format, and 
+# the "label" is the name you want to give to the variable
+# the produced time-series
+
+PB_drug_data<-read.csv('PB-Drugstres-BOSTON.csv')
+PB_groc_data<-read.csv('PB-GroceryStores-BOSTON.csv')
+
+PB_drug_data$demand<-PB_drug_data['UNITS']*PB_drug_data['VOL_EQ']
+PB_groc_data$demand<-PB_groc_data['UNITS']*PB_groc_data['VOL_EQ']
+
+col_idx <- grep("WEEK", names(PB_drug_data))
+PB_drug_data <- PB_drug_data[, c(col_idx, (1:ncol(PB_drug_data))[-col_idx])]
+
+col_idx <- grep("WEEK", names(PB_groc_data))
+PB_groc_data <- PB_groc_data[, c(col_idx, (1:ncol(PB_groc_data))[-col_idx])]
+  
+w2m <- function(file.name, col.name){
+  # Read the .csv data file
+  x <- file.name
+  # Create an index to translate IRI-Weeks into calendar dates
+  CW <- seq(as.POSIXct("1979-9-3", "GMT"), as.POSIXct("2011-12-19", "GMT"), by = "week")
+  # create a calendar index with the IRI weeks in the first column of the file
+  cal.ix <- CW[x[,1]]
+  # Create dem as an xts objext indexed by "cal.ix"
+  demand <- xts(x[,ncol(x)], order.by=cal.ix)
+  # Create a time index with a daily increment and no-data i.e., NA
+  st.day <- first(cal.ix)
+  end.day <- as.POSIXct(as.Date(last(cal.ix))+7)
+  demd <- seq(st.day,end.day,"day")
+  # Merge both time series to create a series with valies and some NA
+  demd <- merge(demand,demd)
+  # Replace NA with prior available number and divide by 7
+  demd <- na.locf(demd)/7
+  # Accumulate demand by month
+  mdem <- apply.monthly(demd,sum)
+  mdem <- ts(as.vector(t(mdem)), start=c(2001,1),end = c(2011,12),frequency=12)
+return(mdem)  
+}
+
+
+groc_store_d <- w2m(PB_groc_data,'groc_demand')
+
+drug_store_d <- w2m(PB_drug_data,"drug_demand")
+```
+
+### Grocery Store Analysis
+```{r}
+p_price<-read.csv('penut_price.csv',stringsAsFactors=FALSE)
+
+change_price<-ts(as.numeric(p_price$Price),frequency = 12,start = c(1997,11))
+
+change_price_win_tr<-window(change_price,start=c(2005,1),end=c(2010,12))
+change_price_win_te<-window(change_price,start=c(2011,1),end=c(2011,12))
+
+groc_store_d_small<-window(groc_store_d,start=c(2005,1),end=c(2011,12),frequency=12)
+groc_store_d_tr<-window(groc_store_d,start=c(2005,1),end=c(2010,12),frequency=12)
+groc_store_d_te<-window(groc_store_d,start=c(2011,1),end=c(2011,12),frequency=12)
+
+```
+
+```{r}
+p_price_small<-p_price[87:170,]
+p_price_small_lag<-p_price[86:169,]
+p_price_small_lag2<-p_price[85:168,]
+feature_<-cbind(as.numeric(p_price_small$Change),p_price_small$Price,p_price_small_lag$Price,as.numeric(p_price_small_lag$Change))
+feature_tr<-feature_[1:72,]
+feature_te<-feature_[73:84,]
+```
+
+### Figure 1.0
+```{r}
+tsdisplay(groc_store_d)
+```
+
+
+```{r}
+groc_arima<-Arima(groc_store_d_tr,order=c(2,2,1), seasonal = c(0,2,1),xreg =feature_tr)
+summary(groc_arima)
+```
+
+
+### Figure 1.1
+```{r}
+tsdiag(groc_arima)
+```
+
+### Figure 1.2
+```{r}
+for1<-forecast(groc_arima,h = 12,xreg = feature_te )
+
+plot(for1)
+lines(groc_store_d_te,col='red')
+```
+
+### Figure 1.3
+```{r}
+tsdisplay(groc_arima$residuals)
+```
+
+### Drug Store Analysis
+```{r}
+
+change_price<-ts(as.numeric(p_price$Price),frequency = 12,start = c(1997,11))
+
+change_price_win_tr<-window(change_price,start=c(2005,1),end=c(2010,12))
+change_price_win_te<-window(change_price,start=c(2011,1),end=c(2011,12))
+
+drug_store_d_small<-window(drug_store_d,start=c(2005,1),end=c(2011,12),frequency=12)
+drug_store_d_tr<-window(drug_store_d,start=c(2005,1),end=c(2010,12),frequency=12)
+drug_store_tr_t<-window(drug_store_d,start=c(2011,1),end=c(2011,12),frequency=12)
+
+```
+
+```{r}
+p_price_small<-p_price[87:170,]
+p_price_small_lag<-p_price[86:169,]
+p_price_small_lag2<-p_price[85:168,]
+feature_<-cbind(as.numeric(p_price_small$Change),p_price_small$Price,p_price_small_lag$Price,as.numeric(p_price_small_lag$Change))
+feature_tr<-feature_[1:72,]
+feature_te<-feature_[73:84,]
+```
+
+### Figure 1.4
+```{r}
+tsdisplay(drug_store_d)
+
+```
+
+```{r}
+drug_arima<-Arima(drug_store_d_tr,order=c(1,0,0), seasonal = c(0,1,1),xreg =feature_tr)
+summary(drug_arima)
+```
+
+### Figure 1.5
+```{r}
+tsdiag(drug_arima)
+```
+
+### Figure 1.6
+```{r}
+for2<-forecast(drug_arima,h = 12,xreg = feature_te )
+
+plot(for2)
+lines(drug_store_tr_t,col='red')
+```
+
+### Combined Forecasts
+
+### Figure 1.7
+```{r}
+combined=groc_store_d_small+drug_store_d_small
+plot(combined,col='black')
+lines(for2$mean+for1$mean,col='red')
+```
+
+### Analysis
+
+* After looking at the drug store penut butter demand and the grocery store penut butter demand, we saw that they are on different scales entirly. This indicated that we needed to do the forecasts seperatly and then combine the 12 month ahead forecasts. 
+
+* The Grocery store data, once shortened apeared to be stationary after a seasonal difference. 
+
+```{r echo=F }
+# 
+# # The following function reads a weekly demand file and 
+# # outputs a time-series with monthly figures
+# # it assumes the first column is the IRI week and 
+# # it converts the figures in the last column of the file
+# # You can call it as:
+# #
+# #  w2m("input-file-name", "label")
+# # where the input file is in a .csv format, and 
+# # the "label" is the name you want to give to the variable
+# # the produced time-series
+# 
+# col_idx <- grep("WEEK", names(PB_drug_data))
+# PB_drug_data <- PB_drug_data[, c(col_idx, (1:ncol(PB_drug_data))[-col_idx])]
+# 
+# col_idx <- grep("WEEK", names(PB_groc_data))
+# PB_groc_data <- PB_groc_data[, c(col_idx, (1:ncol(PB_groc_data))[-col_idx])]
+#   
+# w2m2 <- function(file.name, col.name){
+#   # Read the .csv data file
+#   x <- file.name
+#   # Create an index to translate IRI-Weeks into calendar dates
+#   CW <- seq(as.POSIXct("1979-9-3", "GMT"), as.POSIXct("2011-12-19", "GMT"), by = "week")
+#   # create a calendar index with the IRI weeks in the first column of the file
+#   cal.ix <- CW[x[,1]]
+#   # Create dem as an xts objext indexed by "cal.ix"
+#   demand <- xts(x[,ncol(x)], order.by=cal.ix)
+#   # Create a time index with a daily increment and no-data i.e., NA
+#   st.day <- first(cal.ix)
+#   end.day <- as.POSIXct(as.Date(last(cal.ix))+7)
+#   demd <- seq(st.day,end.day,"day")
+#   # Merge both time series to create a series with valies and some NA
+#   demd <- merge(demand,demd)
+#   # Replace NA with prior available number and divide by 7
+#   demd <- na.locf(demd)/7
+#   # Accumulate demand by month
+#   mdem <- apply.monthly(demd,mean)
+#   mdem <- ts(as.vector(t(mdem)), start=c(2001,1),end = c(2011,12),frequency=12)
+# return(mdem)  
+# }
+# 
+# groc_store_d2 <- w2m2(PB_groc_data,'groc_demand')
+# 
+# drug_store_d2 <- w2m2(PB_drug_data,"drug_demand")
+# 
+```
+
+## Question 2
+```{r}
+library(DataCombine)
+price_data_avg<-read.csv('Groceries_final_batch.csv')
+
+price_data_avg['lag.price1']<-slide(price_data_avg, Var = "Price", slideBy = -1,NewVar ='lag.price1')['lag.price1']
+
+price_data_avg['lag.price2']<-slide(price_data_avg, Var = "Price", slideBy = -2,NewVar ='lag.price2')['lag.price2']
+
+price_data_avg['lag.price3']<-slide(price_data_avg, Var = "Price", slideBy = -3,NewVar ='lag.price3')['lag.price3']
+
+price_data_avg['lag.price4']<-slide(price_data_avg, Var = "Price", slideBy = -4,NewVar ='lag.price4')['lag.price4']
+```
+
+```{r}
+X<-cbind(price_data_avg$Price,price_data_avg$lag.price1,price_data_avg$lag.price2,price_data_avg$lag.price3,price_data_avg$lag.price4)
+y<-price_data_avg$PPU
+
+mod<-lm(y~X[,1:1])
+summary(mod)
+```
+
+```{r}
+library(DataCombine)
+drug_data_avg<-read.csv('Drugs_final_batch.csv')
+
+drug_data_avg['lag.price1']<-slide(drug_data_avg, Var = "Price", slideBy = -1,NewVar ='lag.price1')['lag.price1']
+
+drug_data_avg['lag.price2']<-slide(drug_data_avg, Var = "Price", slideBy = -2,NewVar ='lag.price2')['lag.price2']
+
+drug_data_avg['lag.price3']<-slide(drug_data_avg, Var = "Price", slideBy = -3,NewVar ='lag.price3')['lag.price3']
+
+drug_data_avg['lag.price4']<-slide(drug_data_avg, Var = "Price", slideBy = -4,NewVar ='lag.price4')['lag.price4']
+```
+
+```{r}
+X<-cbind(drug_data_avg$Price,drug_data_avg$lag.price1,drug_data_avg$lag.price2,drug_data_avg$lag.price3,drug_data_avg$lag.price4)
+y<-drug_data_avg$PPU
+
+mod<-lm(y~X[,1:1])
+summary(mod)
+```
+
+### Analysis
+
+## Question 3
+
+
+```{r}
+groc_skippy<-read.csv('Groceries_Only_Skippy.csv')
+```
+
+```{r}
+groc_skippy['lag.price1']<-slide(groc_skippy, Var = "Price", slideBy = -1,NewVar ='lag.price1')['lag.price1']
+```
+
+```{r}
+X<-cbind(groc_skippy$Price,groc_skippy$lag.price1)
+X_tr<-X[1:72,]
+X_te<-X[73:84,]
+```
+
+
+```{r}
+groc_skippy_sales<-ts(groc_skippy$Sales,frequency = 12,start = c(2001,1),end=c(2011,12))
+tsdisplay(groc_skippy_sales)
+```
+
+```{r}
+sales_win_tr<-window(groc_skippy_sales,start=c(2005,1),end=c(2010,12))
+sales_win_te<-window(groc_skippy_sales,start=c(2011,1),end=c(2011,12))
+```
+
+```{r}
+mod1<-Arima(sales_win_tr,order=c(1,1,0),seasonal=c(1,1,1),xreg =X_tr )
+summary(mod1)
+```
+
+```{r}
+for1<-forecast(mod1,h = 12,xreg = X_te )
+plot(for1)
+lines(sales_win_te,col='red')
+```
+
+
+
+
+
+```{r}
+drugs_skippy<-read.csv('Drugs_Only_Skippy.csv')
+```
+
+
+```{r}
+drugs_skippy['lag.price1']<-slide(drugs_skippy, Var = "Price", slideBy = -1,NewVar ='lag.price1')['lag.price1']
+```
+
+```{r}
+X<-cbind(drugs_skippy$Price,drugs_skippy$lag.price1)
+X_tr<-X[1:72,]
+X_te<-X[73:84,]
+```
+
+
+```{r}
+drug_skippy_sales<-ts(drugs_skippy$Sales,frequency = 12,start = c(2001,1),end=c(2011,12))
+tsdisplay(drug_skippy_sales)
+```
+
+```{r}
+sales_win_tr<-window(drug_skippy_sales,start=c(2005,1),end=c(2010,12))
+sales_win_te<-window(drug_skippy_sales,start=c(2011,1),end=c(2011,12))
+```
+
+```{r}
+mod1<-Arima(sales_win_tr,order=c(1,1,0),seasonal=c(2,2,1),xreg =X_tr )
+summary(mod1)
+```
+
+```{r}
+for1<-forecast(mod1,h = 12,xreg = X_te )
+plot(for1)
+lines(sales_win_te,col='red')
+```
+
+
+
