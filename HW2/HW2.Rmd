@@ -1,0 +1,240 @@
+---
+title: "Group Assignmnet2"
+author: "Reece Wooten, Kyle Katzen and Daxi Cheng"
+date: "12/10/2017"
+output: html_document
+---
+
+```{r}
+library(fpp)
+library(xts)
+w2m <- function(file.name, col.name){
+  # Read the .csv data file
+  x <- read.csv(paste0(file.name,".csv"))
+  # Create an index to translate IRI-Weeks into calendar dates
+  CW <- seq(as.POSIXct("1979-9-3", "GMT"), as.POSIXct("2011-12-19", "GMT"), by = "week")
+  # create a calendar index with the IRI weeks in the first column of the file
+  cal.ix <- CW[x[,3]]
+  # Create dem as an xts objext indexed by "cal.ix"
+  demand <- xts(x[,ncol(x)], order.by=cal.ix)
+  # Create a time index with a daily increment and no-data i.e., NA
+  st.day <- first(cal.ix)
+  end.day <- as.POSIXct(as.Date(last(cal.ix))+7)
+  demd <- xts(,seq(st.day,end.day,"day"))
+  # Merge both time series to create a series with valies and some NA
+  demd <- merge(demand,demd)
+  # Replace NA with prior available number and divide by 7
+  demd <- na.locf(demd)/7
+  # Accumulate demand by month
+  mdem <- apply.monthly(demd,sum)
+  mdem <- ts(mdem, start=2001, frequency=12)
+  colnames(mdem) <- col.name
+return(mdem)  
+}
+```
+
+Use the w2m function to convert the data:
+
+```{r}
+dataGrocery<-read.csv("PB-GroceryStores-BOSTON.csv")
+dataGrocery$VOLUME <- dataGrocery$UNITS*dataGrocery$VOL_EQ
+grocerymonth<-NA
+grocery <- w2m("PB-GroceryStores-BOSTON", grocerymonth)
+plot(grocery)
+
+
+
+dataDrug<-read.csv("PB-Drugstres-BOSTON.csv")
+dataDrug$VOLUME <- dataDrug$UNITS*dataDrug$VOL_EQ
+drugmonth<-NA
+drug <- w2m("PB-Drugstres-BOSTON",drugmonth)
+plot(drug)
+```
+
+
+# Question1 
+## Demand forecast for grocery
+
+First we check the stationary of the data series.
+
+```{r}
+grocery.tr <- window(grocery, end=c(2010,12))
+grocery.te <- window(grocery, start=c(2011,1),end=c(2011,12))
+plot(grocery.tr)
+adf.test(grocery.tr,alternative='stationary')
+
+```
+It fail the test and maybe we need to do BoxCox transformation and differentiation to make it stationary
+
+```{R}
+lambdatr = BoxCox.lambda(grocery.tr)
+lambdatr
+tsdisplay(diff(BoxCox(grocery.tr,lambdatr)))
+adf.test(diff(BoxCox(grocery.tr,lambdatr)),alternative='stationary')
+tsdisplay(diff(BoxCox(grocery.tr,lambdatr),lag = 12))
+adf.test(diff(BoxCox(grocery.tr,lambdatr)),alternative='stationary')
+
+```
+
+
+
+```{r}
+grocery.aa <- auto.arima(grocery.tr, lambda=lambdatr)
+summary(grocery.aa)
+tsdiag(grocery.aa, gof.lag=10)
+
+
+# Use test set to validate result
+plot(forecast(grocery.aa,h=12),xlim= c(2008,2012))
+points(grocery.te, col="red", pch=19)
+accuracy(forecast(grocery.aa,h=12), grocery.te)
+
+```
+
+We get ARIMA(2,1,2)(1,0,2)[12] from auto arima.The RMSE = 3719.665 MAPE = 12.10%.
+
+
+```{r}
+# Forecast for next year
+grocery.fit <- Arima(grocery, lambda=lambdatr,order=c(3,1,0),seasonal = c(0,1,3))
+plot(forecast(grocery.fit,h=12),xlim= c(2008,2013))
+grocery.pred = forecast(grocery.fit,h=12)
+
+```
+
+Finally we choose  ARIMA(3,1,0)(0,1,3)[12] from arima. RMSE = 2962.727 MAPE = 10.66% and predict the next year.
+
+## Demand forecast for drug
+
+```{r}
+drug.tr <- window(drug, end=c(2010,12))
+drug.te <- window(drug, start=c(2011,1),end=c(2011,12))
+```
+```{R}
+plot(drug.tr)
+tsdisplay(drug.tr)
+adf.test(drug.tr,alternative='stationary')
+lambdatr_1 = BoxCox.lambda(drug.tr)
+tsdisplay(BoxCox(drug.tr,lambdatr_1))
+tsdisplay(diff(BoxCox(drug.tr,lambdatr_1)))
+adf.test(diff(BoxCox(drug.tr,lambdatr)),alternative='stationary')
+tsdisplay(diff(diff(BoxCox(drug.tr,lambdatr_1),lag=12)))
+adf.test(diff(BoxCox(drug.tr,lambdatr)),alternative='stationary')
+```
+
+
+```{r}
+drug.aa <- auto.arima(drug.tr,lambda = lambdatr_1)
+summary(drug.aa)
+tsdiag(drug.aa, gof.lag=24)
+plot(forecast(drug.aa,h=12),xlim= c(2008,2012))
+points(drug.te, col="red", pch=19)
+accuracy(forecast(drug.aa,h=12), drug.te)
+```
+Auto arima get ARIMA(2,1,1)(2,0,0)[12] 
+
+```{r}
+drug.ar1 <- Arima(drug.tr,order=c(0,1,1),seasonal = c(1,1,0))
+summary(drug.ar1)
+tsdiag(drug.ar1, gof.lag=24)
+plot(forecast(drug.ar1,h=12),xlim= c(2008,2012))
+points(drug.te, col="red", pch=19)
+accuracy(forecast(drug.ar1,h=12), drug.te)
+
+```
+We found that ARIMA(0,1,1)(1,1,0)[12] performs better. RMSE = 39.31, MAPE 17.59%
+
+```{r}
+drug.fit <- Arima(drug, lambda=lambdatr_1,order=c(0,1,1),seasonal = c(1,1,0))
+plot(forecast(drug.fit,h=12),xlim= c(2008,2013))
+drug.pred = forecast(drug.fit,h=24)
+
+```
+
+# Aggregate 
+```{r}
+pred <- drug.pred$mean +grocery.pred$mean
+pred
+
+```
+
+# Q2
+
+```{r}
+## Remove /7 change column to -1 Change to mean instead of sum
+w2m_2 <- function(file.name, col.name){
+  # Read the .csv data file
+  x <- read.csv(paste0(file.name,".csv"))
+  # Create an index to translate IRI-Weeks into calendar dates
+  CW <- seq(as.POSIXct("1979-9-3", "GMT"), as.POSIXct("2011-12-19", "GMT"), by = "week")
+  # create a calendar index with the IRI weeks in the first column of the file
+  cal.ix <- CW[x[,3]]
+  # Create dem as an xts objext indexed by "cal.ix"
+  demand <- xts(x[,ncol(x)-1], order.by=cal.ix)
+  # Create a time index with a daily increment and no-data i.e., NA
+  st.day <- first(cal.ix)
+  end.day <- as.POSIXct(as.Date(last(cal.ix))+7)
+  demd <- xts(,seq(st.day,end.day,"day"))
+  # Merge both time series to create a series with valies and some NA
+  demd <- merge(demand,demd)
+  # Replace NA with prior available number and divide by 7
+  demd <- na.locf(demd)
+  # Accumulate demand by month
+  mdem <- apply.monthly(demd,mean)
+  mdem <- ts(mdem, start=2001, frequency=12)
+  colnames(mdem) <- col.name
+return(mdem)  
+}
+
+
+
+```
+
+
+```{r}
+grocerymonth<-NA
+gPrice <- w2m_2("PB-GroceryStores-BOSTON", grocerymonth)
+plot(gPrice)
+#gPrice
+
+drugmonth<-NA
+dPrice <- w2m_2("PB-Drugstres-BOSTON",drugmonth)
+plot(dPrice)
+#dPrice
+
+```
+
+```{r}
+penutprice = read.csv("penut_price1.csv",header=TRUE)
+price <-data.frame(
+  target = gPrice,
+  Pprice = penutprice$Pprice,
+  lag1price = penutprice$Lag1Price,
+  lag2price = penutprice$Lag2Price
+)
+
+
+lm1 = lm(gPrice~penutprice$Pprice+penutprice$Lag1Price+penutprice$Lag2Price)
+
+lm1 = lm(price$NA.~.,data = price)
+summary(lm1)
+
+lm2 = lm(price$NA.~price$Pprice,data = price)
+summary(lm2)
+
+lm3 = lm(price$NA.~price$lag1price,data = price)
+summary(lm3)
+
+lm4 = lm(price$NA.~price$lag2price,data = price)
+summary(lm4)
+
+```
+
+
+
+
+
+
+
+
+
