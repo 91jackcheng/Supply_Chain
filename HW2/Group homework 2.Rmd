@@ -192,6 +192,8 @@ plot(combined,col='black')
 lines(for2$mean+for1$mean,col='red')
 ```
 
+
+
 ### Analysis
 
 * After looking at the drug store penut butter demand and the grocery store penut butter demand, we saw that they are on different scales entirly. This indicated that we needed to do the forecasts seperatly and then combine the 12 month ahead forecasts. 
@@ -263,7 +265,6 @@ price_data_avg['lag.price4']<-slide(price_data_avg, Var = "Price", slideBy = -4,
 ```{r}
 X<-cbind(price_data_avg$Price,price_data_avg$lag.price1,price_data_avg$lag.price2,price_data_avg$lag.price3,price_data_avg$lag.price4)
 y<-price_data_avg$PPU
-
 mod<-lm(y~X[,1:1])
 summary(mod)
 ```
@@ -331,9 +332,6 @@ lines(sales_win_te,col='red')
 ```
 
 
-
-
-
 ```{r}
 drugs_skippy<-read.csv('Drugs_Only_Skippy.csv')
 ```
@@ -366,10 +364,13 @@ summary(mod1)
 ```
 
 ```{r}
-for1<-forecast(mod1,h = 12,xreg = X_te )
-plot(for1)
+for2<-forecast(mod1,h = 12,xreg = X_te )
+plot(for2)
 lines(sales_win_te,col='red')
 ```
 
 
+```{r}
+
+```
 
